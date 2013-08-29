@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+
+	<head>
+		<meta charset="utf-8">
+
+		<title>Building really fast websites with Drupal 8</title>
+
+		<meta name="description" content="">
+		<meta name="author" content="Wim Leers">
+
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+		<link rel="stylesheet" href="src/reveal/css/reveal.min.css">
+		<link rel="stylesheet" href="src/fullscreen-img/fullscreen-img.css">
+		<link rel="stylesheet" href="src/reveal/css/theme/default.css" id="theme">
+
+		<!-- For syntax highlighting -->
+		<link rel="stylesheet" href="src/reveal/lib/css/zenburn.css">
+
+		<!-- If the query includes 'print-pdf', use the PDF print sheet -->
+		<script>
+			document.write( '<link rel="stylesheet" href="src/reveal/css/print/' + ( window.location.search.match( /print-pdf/gi ) ? 'pdf' : 'paper' ) + '.css" type="text/css" media="print">' );
+		</script>
+
+		<!--[if lt IE 9]>
+		<script src="src/reveal/lib/js/html5shiv.js"></script>
+		<![endif]-->
+	</head>
+
+	<body>
+
+		<div class="reveal">
+
+			<!-- Any section element inside of this container is displayed as a slide -->
+			<div class="slides">
+
+				<!-- DrupalCon Prague mandatory title slide. -->
+				<section fullscreen-img="images/title.png" fullscreen-size="contain"></section>
+
+
+
+
+				<section>
+					<h1>Building really fast websites</h1>
+					<h3>with Drupal 8</h3>
+					<p>
+						<small><a href="https://wimleers.com">wimleers.com</a><br />
+						<a href="https://twitter.com/wimleers">@wimleers</a><br />
+						Senior Software Engineer<br />
+						Office of the CTO, <a href="http://acquia.com">Acquia</a></small>
+					</p>
+					<aside class="notes">
+						I'm Wim, I work for Acquia on the Spark project; which means I work not just on Spark-related stuff, but also making Drupal 8 better. I worked on some of the performance improvements in Drupal 8, several of which should make your lives easier, your sites faster and your sites' scalability better.
+					</aside>
+				</section>
+
+
+
+
+				<section>
+					<h2>This talk is about</h2>
+					<ol>
+						<li>What Drupal 8 does better</li>
+						<li>Render cache</li>
+						<li>Client-side caching</li>
+						<li>Pluggable CSS/JS optimization</li>
+						<li>… what still needs to happen :)</li>
+					</ol>
+					<aside class="notes">
+					</aside>
+				</section>
+
+
+
+				<!-- libraries/dependencies/#attached -->
+				<section>
+					<section>
+						<p><img src="images/js-all-the-things.jpg" width="500" height="375" alt="Load JavaScript on ALL the pages!" /></p>
+						<p class="fragment"><small>Not anymore :)</small></p>
+						<aside class="notes">
+							<p>Due to my studies, I didn't find the time to update my personal site to Drupal 6. So I went straight from 5 to 7. Since I care about performance, I wanted my site to be very fast. So I was very surprised to find that even when you don't add any JS to a page in Drupal, Drupal still thinks it should load jQuery, Drupal.js and Drupal.settings for you.</p>
+							<p>Fortunately I didn't have to make the image read "Load ALL the JavaScript on ALL the pages" though :)</p>
+						</aside>
+					</section>
+					<section>
+						<h2>Fixed in Drupal 8</h2>
+						<ul>
+							<li>Declare all dependencies <small>(<a href="https://drupal.org/node/1737148">#1737148</a>)</small></li>
+							<li>No more <code>drupal_add_*()</code>, only <code>#attached</code> <small>(<a href="https://drupal.org/node/1839338">#1839338</a>)</small></li>
+						</ul>
+
+						<h2 style="margin-top: 1.5em">Unfixable in Drupal 7</h2>
+						<ul>
+							<li><a href="https://twitter.com/attiks">@attiks</a> is bravely working on a work-around in <a href="https://drupal.org/node/1279226">#1279226</a></li>
+							<li>Only fixable for individual sites</li>
+						</ul>
+					</section>
+					<section>
+						<h2>1: Dependencies/closure</h2>
+						<h4><code>tableselect.js</code></h4>
+						<pre><code class="javascript">
+(function ($, Drupal) {
+
+"use strict";
+
+Drupal.behaviors.tableSelect = {
+  attach: function (context, settings) {
+    $(context).find('th.select-all').closest('table') …
+  }
+};
+
+…
+
+})(jQuery, Drupal);
+						</code></pre>
+						<ul>
+							<li class="fragment"><code>jQuery</code> is used</li>
+							<li class="fragment"><code>Drupal</code> is used</li>
+						</ul>
+						<p class="fragment">⟶ put them in the closure</p>
+					</section>
+
+					<section>
+						<h2>2: declare library</h2>
+						<pre><code class="php">
+  $libraries['drupal.tableselect'] = array(
+    'title' => 'Tableselect',
+    …
+    'js' => array(
+      'core/misc/tableselect.js' => array(),
+    ),
+    'dependencies' => array(
+      array('system', 'jquery'),
+      array('system', 'drupal'),
+    ),
+  );
+						</code></pre>
+						<p class="fragment"><code>jQuery</code> and <code>Drupal</code> in the closure ⟶ dependencies</p>
+					</section>
+					<section>
+						<h2>3: abandon <small><code>drupal_add_(css|js)()</code></small></h2>
+						<pre><code class="diff">
+       // Add a "Select all" checkbox.
+-      drupal_add_js('core/misc/tableselect.js');
++      drupal_add_library('system', 'drupal.tableselect');
+						</code></pre>
+					</section>
+					<section>
+						<h2>4: abandon <small><code>drupal_add_*()</code></small></h2>
+						<p>Always use <code>#attached</code>.</p>
+						<pre><code class="diff">
+       // Add a "Select all" checkbox.
+-      drupal_add_library('system', 'drupal.tableselect');
++      $element['#attached']['library'][] = array('system', 'drupal.tableselect');
+						</code></pre>
+						<p><code>drupal_add_*()</code> uses global state ⟶ breaks caching</p>
+						<aside class="notes">
+							When calling <code>drupal_add_*()</code>, a global state variable keeps track of all the CSS, JS and settings that have been added to the page. But when you want to cache parts/fragments of the page, then this global state wouldn't be rebuild, because the code calling <code>drupal_add_*()</code> is not being executed. That's why you should always use <code>#attached</code>.
+						</aside>
+					</section>
+					<section data-background="#4d7e65">
+						<h2>Conclusion</h2>
+						<blockquote>Load assets by <code>#attach</code>ing libraries</blockquote>
+						<ul>
+							<li>Better DX</li>
+							<li>Cacheable render arrays</li>
+							<li>Only required assets will be loaded</li>
+							<li>Dynamically loaded content has its assets</li>
+						</ul>
+						<aside class="notes">
+							Better DX because developers don't have to track down which assets should be loaded.
+						</aside>
+					</section>
+				</section>
+
+
+
+
+				<!-- Render caching of entities -->
+				<section>
+					<section>
+						<p><img src="images/render-cache-all-the-entities.jpg" width="500" height="375" alt="Render cache ALL the entities!" /></p>
+						<p class="fragment"><small>Almost!</small></p>
+						<aside class="notes">
+							One of the things that has gotten much more expensive in Drupal 8, is the rendering of entities. To get to Drupal 7 or better performance levels, we need to finally achieve render caching of entities: users with the same combination of roles will always get the same chunk of HTML, without the need for us to rerender it again.
+						</aside>
+					</section>
+					<section>
+						<h2>But before we got there…</h2>
+						<p>… we had to fix a thing or two:
+							<ul>
+								<li><a href="https://drupal.org/node/636454">[#636454]</a> Cache tag support</li>
+								<li><a href="https://drupal.org/node/914382">[#914382]</a> Contextual links incompatible with render cache</li>
+								<li><a href="https://drupal.org/node/1991684">[#1991684]</a> comment's "new" indicator, "x new comments" links incompatible with render cache</li>
+								<li><a href="https://drupal.org/node/1605290">[#1605290]</a>: Enable entity render caching with cache tag support</li>
+							</ul>
+						</p>
+					</section>
+				</section>
+
+
+
+				<!-- DrupalCon Prague mandatory evaluation slide. -->
+				<section fullscreen-img="images/evaluation.png" fullscreen-size="contain"></section>
+			</div>
+
+		</div>
+
+		<script src="src/reveal/lib/js/head.min.js"></script>
+		<script src="src/reveal/js/reveal.min.js"></script>
+
+		<script>
+
+			// Full list of configuration options available here:
+			// https://github.com/hakimel/reveal.js#configuration
+			Reveal.initialize({
+				controls: true,
+				progress: true,
+				history: true,
+				center: true,
+
+				theme: Reveal.getQueryHash().theme, // available themes are in /css/theme
+				transition: Reveal.getQueryHash().transition || 'default', // default/cube/page/concave/zoom/linear/fade/none
+
+				// Optional libraries used to extend on reveal.js
+				dependencies: [
+				  { src: 'src/fullscreen-img/fullscreen-img.js'},
+					{ src: 'src/reveal/lib/js/classList.js', condition: function() { return !document.body.classList; } },
+					{ src: 'src/reveal/plugin/markdown/marked.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+					{ src: 'src/reveal/plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+					{ src: 'src/reveal/plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } },
+					{ src: 'src/reveal/plugin/zoom-js/zoom.js', async: true, condition: function() { return !!document.body.classList; } },
+					{ src: 'src/reveal/plugin/notes/notes.js', async: true, condition: function() { return !!document.body.classList; } }
+				]
+			});
+
+		</script>
+
+	</body>
+</html>
