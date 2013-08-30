@@ -76,6 +76,7 @@
 
 
 
+
 				<!-- libraries/dependencies/#attached -->
 				<section>
 					<section>
@@ -123,7 +124,6 @@ Drupal.behaviors.tableSelect = {
 						</ul>
 						<p class="fragment">⟶ put them in the closure</p>
 					</section>
-
 					<section>
 						<h2>2: declare library</h2>
 						<pre><code class="php">
@@ -163,7 +163,7 @@ Drupal.behaviors.tableSelect = {
 						</aside>
 					</section>
 					<section data-background="#4d7e65">
-						<h2>Conclusion</h2>
+						<h2>Conclusion <small>(asset loading)</small></h2>
 						<blockquote>Load assets by <code>#attach</code>ing libraries</blockquote>
 						<ul>
 							<li>Better DX</li>
@@ -192,15 +192,214 @@ Drupal.behaviors.tableSelect = {
 					<section>
 						<h2>But before we got there…</h2>
 						<p>… we had to fix a thing or two:
-							<ul>
+							<ol>
 								<li><a href="https://drupal.org/node/636454">[#636454]</a> Cache tag support</li>
 								<li><a href="https://drupal.org/node/914382">[#914382]</a> Contextual links incompatible with render cache</li>
 								<li><a href="https://drupal.org/node/1991684">[#1991684]</a> comment's "new" indicator, "x new comments" links incompatible with render cache</li>
 								<li><a href="https://drupal.org/node/1605290">[#1605290]</a>: Enable entity render caching with cache tag support</li>
+							</ol>
+						</p>
+						<aside class="notes">
+							Very roughly speaking, this is the sequence of things we had to fix.
+						</aside>
+					</section>
+					<section>
+						<h2>Contextual links in Drupal 7</h2>
+						<img src="images/contextual-d7.png" width="703" height="354" alt="Screenshot of contextual links in Drupal 7." />
+					</section>
+					<section>
+						<h2>Contextual links: HTML in Drupal 7</h2>
+						<pre><code class="php">
+<div class="contextual-links-wrapper">
+  <ul class="contextual-links">
+    <li class="node-edit first">
+      <a href="/node/1211/edit?destination=node">Bewerken</a>
+    </li>
+    <li class="node-delete last">
+      <a href="/node/1211/delete?destination=node">Verwijderen</a>
+    </li>
+  </ul>
+</div>
+						</code></pre>
+						<ul>
+							<li class="fragment">Embedded in node's HTML</li>
+							<li class="fragment">Adapt to user's permissions</li>
+						</ul>
+						<p class="fragment">⟶ breaks render cache</p>
+					</section>
+					<section>
+						<h2>Contextual links: HTML in Drupal 8</h2>
+						<pre><code class="html">
+<div data-contextual-id="node:node:1211:"></div>
+						</code></pre>
+						<p>or</p>
+						<pre><code class="html" style="dwhite-space: pre-wrap;">
+<div data-contextual-id="views_ui:admin/structure/views/view:
+frontpage:location=page&amp;name=frontpage&amp;display_id=page_1"></div>
+						</code></pre>
+						<ul>
+							<li class="fragment">Embedded in node's HTML</li>
+							<li class="fragment"><em>Invisible placeholder!</em></li>
+						</ul>
+						<p class="fragment">⟶ compatible with render cache</p>
+					</section>
+					<section>
+						<h2>Contextual links: logic in Drupal 8</h2>
+						<p>
+							<small>Contextual IDs in HTML</small>
+							<pre><code class="html">
+<div data-contextual-id="module:parent_path:path_args:metadata"></div>
+							</code></pre>
+						</p>
+						<div class="fragment">
+							<p>+</p>
+							<p>
+								<code>contextual.js</code><br />
+								<small>(If <em>Use contextual links</em> permission.)</small>
+							</p>
+						</div>
+						<div class="fragment">
+							<p>+</p>
+							<p>POST contextual IDs to <code>contextual/render</code></p>
+						</div>
+						<div class="fragment">
+							<p>=</p>
+							<p>Same HTML for <em>all</em> users!<br />
+								<small>(User-specific data retrieved later)</small></p>
+						</p>
+						<aside class="notes">
+							On the server side, nothing has changed; you still define contextual links in the exact same way. However, the
+						</aside>
+					</section>
+					<section>
+						<h2>"new" comment marker in Drupal 8</h2>
+						<pre><code class="diff">-  {% if new %}
+-    <span class="new">{{ new }}</span>
+-  {% endif %}
++  {#
++  Hide the "new" indicator by default, let a piece of JavaScript ask
++  the server which comments are new for the user. Rendering the final
++  "new" indicator here would break the render cache.
++  #}
++  <span class="hidden new" data-comment-timestamp="{{ time }}"></span>
+</code></pre>
+
+		<pre><code class="php">/**
+ * Implements hook_node_view_alter().
+ */
+function comment_node_view_alter(&amp;$build, EntityInterface $node, EntityDisplay $display) {
+  if (module_exists('history')) {
+    $build['#attributes']['data-history-node-id'] = $node->id();
+  }
+}
+</code></pre>
+						</p>
+						<ul>
+							<li class="fragment">Embedded in node's HTML</li>
+							<li class="fragment"><em>Invisible placeholder!</em></li>
+						</ul>
+						<p class="fragment">⟶ compatible with render cache</p>
+					</section>
+					<section>
+						<h2>"new" comment markers: logic in Drupal 8</h2>
+						<p>
+							<pre style="margin-bottom: 1em"><code class="html"><div class="node node-blog …" data-history-node-id="node ID">…</div></code></pre>
+							<pre><code class="html"><span class="hidden new" data-comment-timestamp="timestamp"></span>
+…
+<span class="hidden new" data-comment-timestamp="timestamp"></span></code></pre>
+						</p>
+						<div class="fragment">
+							<p>+</p>
+							<p>
+								<code>comment-new-indicator.js</code><br />
+								<small>(If authenticated)</small>
+							</p>
+						</div>
+						<div class="fragment">
+							<p>+</p>
+							<p style="margin-top: 0; margin-bottom: 0"><code>localStorage</code></p>
+						</div>
+						<div class="fragment">
+							<p>+</p>
+							<p>POST node IDs to <code style="padding-left: .5em; font-size: 80%">history/get_node_read_timestamps</code></p>
+						</div>
+						<div class="fragment">
+							<p>=</p>
+							<p>Same HTML for <em>all</em> users!</p>
+						</p>
+						<aside class="notes">
+							On the server side, nothing has changed; you still define contextual links in the exact same way. However, the
+						</aside>
+					</section>
+					<section>
+						<h2>Tracker "new" &amp; "updated" markers, "X new comments" links</h2>
+						<p>Similar.
+							<ul>
+								<li class="fragment">Drupal 7: user-specific data in HTML</li>
+								<li class="fragment">Drupal 8:
+									<ol>
+										<li class="fragment"><code>data-</code> attributes with "universal truths"<br />
+										(<em>perhaps</em> on invisible placeholders)</li>
+										<li class="fragment">JavaScript<br />
+										(<em>if permission</em>)</li>
+										<li class="fragment">cache user-specific data on client-side<br />
+										(<em>if necessary:</em> talk to server)</li>
+									</ol>
+								</li>
 							</ul>
 						</p>
+						<p style="margin-top: 1em"><em>Pioneered by in-place editing, now applied in many places.</em></p>
+					</section>
+					<section data-background="#4d7e65">
+						<h2>Conclusion <small>(render caching)</small></h2>
+						<blockquote>Personalize via JS, cache client-side if possible</blockquote>
+
+						<ul>
+							<li>Cacheable render arrays</li>
+							<li>Universal truths: <code>data-</code> attributes</li>
+							<li>Personalization: JavaScript + <code>localStorage</code></li>
+						</ul>
 					</section>
 				</section>
+
+
+
+
+				<section>
+					<section>
+						<img src="images/cache-client-side-all-the-things.jpg" width="500" height="375" />
+					</section>
+					<section>
+						TODO
+						https://drupal.org/node/2005644
+						http://dgo.to/edit_metadata_cache
+					</section>
+				</section>
+
+
+
+
+				<section>
+					<section>
+						<img src="images/asset-optimization-all-the-things.jpg" width="500" height="375" />
+					</section>
+				</section>
+
+
+
+
+				<section>
+					<section>
+						<h2>What still needs to happen.</h2>
+						<p>We need your help!</p>
+					</section>
+					<section>
+						Reduce the number of post-page load HTTP requests (contextual, edit, history)
+						<a href="https://drupal.org/node/1712456">Views + cache tags</a>
+						CSS/JS Aggregation enabled by default https://drupal.org/node/678292
+					</section>
+				</section>
+
 
 
 
