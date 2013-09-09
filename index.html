@@ -172,7 +172,8 @@ Drupal.behaviors.tableSelect = {
 							<li>Dynamically loaded content has its assets</li>
 						</ul>
 						<aside class="notes">
-							Better DX because developers don't have to track down which assets should be loaded.
+							<p>Better DX because developers don't have to track down which assets should be loaded.</p>
+							<p>You can do this in Drupal 7 as well, <code>#attached</code> already existed there. The only difference is that you cannot prevent jQuery.js and Drupal.js from being loaded.</p>
 						</aside>
 					</section>
 				</section>
@@ -202,6 +203,108 @@ Drupal.behaviors.tableSelect = {
 						<aside class="notes">
 							Very roughly speaking, this is the sequence of things we had to fix.
 						</aside>
+					</section>
+					<section>
+						<blockquote style="margin-bottom: 1em">&ldquo;There are only two hard problems in Computer Science: cache invalidation and naming things.&rdquo;</blockquote>
+						<ul>
+							<li>Caching is easy</li>
+							<li>Cache invalidation is hard</li>
+							<li>Poor cache invalidation ⟹ poor performance</li>
+						</ul>
+						<aside class="notes">
+							<p>So, first we want to make sure Drupal's cache <em>invalidation</em> system is good enough, second we want to make sure that we <em>fill</em> the cache correctly.</p>
+						</aside>
+					</section>
+					<section>
+						<h2>1. Cache invalidation is hard</h2>
+					</section>
+					<section>
+						<img src="images/page-caching-d7.png" width="960" height="587" alt="Screenshot of page caching being enabled in Drupal 7." />
+						<p class="fragment">… clears the entire page cache on node save!</p>
+						<aside class="notes">
+							<p>I suspect most of those interested in this talk have seen and checked this checkbox. But did you know that in many scenarios, it works less than great? When you edit <em>any</em> node or even comment, <em>all</em> page cache entries will be deleted!</p>
+						</aside>
+					</section>
+					<section>
+						<h2>Cache clearing in Drupal 7</h2>
+						<ol>
+							<li class="fragment">Clear a specific cache entry:
+							<pre><code class="php">cache_clear_all('foo:content:id', $bin);</code></pre></li>
+							<li class="fragment">Clear a coarse set of cache entries:
+							<pre><code class="php">cache_clear_all('foo:content:', $bin, TRUE);</code></pre></li>
+							<li class="fragment">Clear all entries:
+							<pre><code class="php">cache_clear_all('*', $bin, TRUE);</code></pre></li>
+						</ol>
+						<div class="fragment">
+							<p>⬇</p>
+							<blockquote>&ldquo;How to clear all entries containing node 42?&rdquo;</blockquote>
+						</div>
+						<div class="fragment">
+							<p>⬇</p>
+							<p><em>Impossible!</em></p>
+						</div>
+						<aside class="notes">
+							<p>Drupal 7 just clears the page cache whenever any content is added/modified, <em>because</em> there is no way to do it better!</p>
+							<p>It is possible to implement workarounds, like <a href="https://drupal.org/project/issues/performance_hacks">the Performance Hacks module</a> does, but even then it will only work if custom code was specifically written for it. That module claims a 30–40% performance win.</p>
+						</aside>
+					</section>
+					<section>
+						<h2>Cache tags in Drupal 8</h2>
+						<pre><code class="php">cache($bin)->set($cid, $value, CACHE_PERMANENT, $tags);</code></pre>
+						<ul>
+							<li>Something in page cache: <pre><code class="php">$tags = array('content' => TRUE);</code></pre></li>
+							<li>HTML containing title of node 42: <pre><code class="php">$tags = array(
+  'node' => array(42)
+);</code></pre></li>
+							<li>Node with two Taxonomy terms: <pre><code class="php">$tags = array(
+  'node' => array(42),
+  'user' => array(314),
+  'taxonomy_term' => array(1337, 9001),
+);</code></pre></li>
+						</ul>
+						<aside class="notes">
+							<p>In Drupal 7, you could only delete 1) specific cache entries (given a CID), 2) a coarse set of cache entries (given a CID prefix), 3) all cache entries (everything in a bin).</p>
+							<p>It's the second case that is vastly better in Drupal 8. When node 42 is modified, all </p>
+						</aside>
+					</section>
+					<section>
+						<h2>Using cache tags in render arrays</h2>
+						<pre><code class="php">$element['#cache'] = array(
+  'keys' => array('entity_view', $entity_type, $entity_id, $view_mode),
+  'granularity' => DRUPAL_CACHE_PER_ROLE,
+  'tags' => array(
+    $entity_type . '_view' => TRUE,
+    $entity_type => array($entity_id),
+  ),
+);</code></pre>
+						<div class="fragment">
+							<p style="line-height: .5em">+</p>
+							<pre><code class="php">/**
+ * Collects cache tags for an element and its children into 1 array.
+ *
+ * […] This allows items to be invalidated based on all tags attached
+ * to the content they're constituted from.
+ */
+function drupal_render_collect_cache_tags($element) { … }</code></pre>
+						</div>
+						<div class="fragment">
+							<hr>
+							<p>Clear caches:
+								<ul>
+									<li><code style="font-size: 90%">deleteTags()</code>: &nbsp;&nbsp; prevents stale content</li>
+									<li><code>invalidateTags()</code>: &nbsp;&nbsp; allows stale content</li>
+								</ul>
+							</p>
+						</div>
+						<aside class="notes">
+							<p>Why the generic "entity type underscore view" tag? Because the entity display configuration could be changed, e.g. stop showing a certain field label.</p>
+							<p>Why the "entity ID" tag? Because the node could be changed.</p>
+							<p>So, in conclusion, in Drupal 8 the page cache is still being cleared completely upon node save. <em>But</em> now it's cheaper to rebuild that page because entities don't
+						have to be rerendered entirely anymore.</p>
+						</aside>
+					</section>
+					<section>
+						<h2>2. Caching is easy</h2>
 					</section>
 					<section>
 						<h2>Contextual links in Drupal 7</h2>
@@ -352,13 +455,21 @@ function comment_node_view_alter(&amp;$build, EntityInterface $node, EntityDispl
 					</section>
 					<section data-background="#4d7e65">
 						<h2>Conclusion <small>(render caching)</small></h2>
-						<blockquote>Personalize via JS, cache client-side if possible</blockquote>
-
+						<blockquote style="margin-top: 1em">Use cache tags precisely <small>(cache invalidation)</small></blockquote>
+						<ul>
+							<li>Tag render arrays</li>
+							<li>Delete tags: prevent stale content</li>
+							<li>Invalidate tags: allow stale content</li>
+						</ul>
+						<blockquote style="margin-top: 1em">Personalize via JS, cache client-side <small>(cache filling)</small></blockquote>
 						<ul>
 							<li>Cacheable render arrays</li>
 							<li>Universal truths: <code>data-</code> attributes</li>
-							<li>Personalization: JavaScript + <code>localStorage</code></li>
+							<li>Personalization: JS + <code>localStorage</code></li>
 						</ul>
+						<aside class="notes">
+							<p>You can do this in Drupal 7 as well, to some degree. The render cache existed there, but was mostly broken due to the above problems (user-specific data being embedded in the render arrays). The difference is that you won't get granular cache clearing.</p>
+						</aside>
 					</section>
 				</section>
 
