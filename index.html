@@ -73,7 +73,7 @@
 					<h2>This talk is about</h2>
 					<ol>
 						<li>What Drupal 8 does better</li>
-						<li>Render cache</li>
+						<li>Render caching</li>
 						<li>Client-side caching</li>
 						<li>Pluggable CSS/JS optimization</li>
 						<li>… what still needs to happen :)</li>
@@ -205,7 +205,6 @@ Drupal.behaviors.tableSelect = {
 								<li><a href="https://drupal.org/node/636454">[#636454]</a> Cache tag support</li>
 								<li><a href="https://drupal.org/node/914382">[#914382]</a> Contextual links incompatible with render cache</li>
 								<li><a href="https://drupal.org/node/1991684">[#1991684]</a> comment's "new" indicator, "x new comments" links incompatible with render cache</li>
-								<li><a href="https://drupal.org/node/1605290">[#1605290]</a>: Enable entity render caching with cache tag support</li>
 							</ol>
 						</p>
 						<p>… but still not yet there!</p>
@@ -223,6 +222,10 @@ Drupal.behaviors.tableSelect = {
 						<aside class="notes">
 							<p>So, first we want to make sure Drupal's cache <em>invalidation</em> system is good enough, second we want to make sure that we <em>fill</em> the cache correctly.</p>
 						</aside>
+					</section>
+					<section>
+						<h2>p15n</h2>
+						<p><em>personalization</em></p>
 					</section>
 					<section>
 						<h2>1. Cache invalidation is hard</h2>
@@ -261,11 +264,11 @@ Drupal.behaviors.tableSelect = {
 						<h2>Cache tags in Drupal 8</h2>
 						<pre><code class="php">cache($bin)->set($cid, $value, CACHE_PERMANENT, $tags);</code></pre>
 						<ul>
-							<li>Something in page cache: <pre><code class="php">$tags = array('content' => TRUE);</code></pre></li>
-							<li>HTML containing title of node 42: <pre><code class="php">$tags = array(
+							<li class="fragment">Something in page cache: <pre><code class="php">$tags = array('content' => TRUE);</code></pre></li>
+							<li class="fragment">HTML containing title of node 42: <pre><code class="php">$tags = array(
   'node' => array(42)
 );</code></pre></li>
-							<li>Node with two Taxonomy terms: <pre><code class="php">$tags = array(
+							<li class="fragment">Node with two Taxonomy terms: <pre><code class="php">$tags = array(
   'node' => array(42),
   'user' => array(314),
   'taxonomy_term' => array(1337, 9001),
@@ -300,7 +303,7 @@ function drupal_render_collect_cache_tags($element) { … }</code></pre>
 							<hr>
 							<p>Clear caches:
 								<ul>
-									<li><code style="font-size: 90%">deleteTags()</code>: &nbsp;&nbsp; prevents stale content</li>
+									<li><code>deleteTags()</code>: &nbsp;&nbsp; prevents stale content</li>
 									<li><code>invalidateTags()</code>: &nbsp;&nbsp; allows stale content</li>
 								</ul>
 							</p>
@@ -335,7 +338,7 @@ function drupal_render_collect_cache_tags($element) { … }</code></pre>
 						</code></pre>
 						<ul>
 							<li class="fragment">Embedded in node's HTML</li>
-							<li class="fragment">Adapt to user's permissions</li>
+							<li class="fragment">Adapt to user's permissions + page</li>
 						</ul>
 						<p class="fragment">⟹ breaks render cache</p>
 					</section>
@@ -377,10 +380,10 @@ frontpage:location=page&amp;name=frontpage&amp;display_id=page_1"></div>
 						<div class="fragment">
 							<p>=</p>
 							<p>Same HTML for <em>all</em> users!<br />
-								<small>(User-specific data retrieved later)</small></p>
+								<small>(P15n applied later)</small></p>
 						</p>
 						<aside class="notes">
-							On the server side, nothing has changed; you still define contextual links in the exact same way. However, the
+							<p>On the server side, nothing has changed; you still define contextual links in the exact same way. However, now it renders into a placeholder, and the JS will retrieve the eventual HTML.</p>
 						</aside>
 					</section>
 					<section>
@@ -388,11 +391,6 @@ frontpage:location=page&amp;name=frontpage&amp;display_id=page_1"></div>
 						<pre><code class="diff">-  {% if new %}
 -    <span class="new">{{ new }}</span>
 -  {% endif %}
-+  {#
-+  Hide the "new" indicator by default, let a piece of JavaScript ask
-+  the server which comments are new for the user. Rendering the final
-+  "new" indicator here would break the render cache.
-+  #}
 +  <span class="hidden new" data-comment-timestamp="{{ time }}"></span>
 </code></pre>
 
@@ -429,15 +427,12 @@ function comment_node_view_alter(&amp;$build, EntityInterface $node, EntityDispl
 						</div>
 						<div class="fragment">
 							<p>+</p>
-							<p style="margin-top: 0; margin-bottom: 0"><code>localStorage</code></p>
-						</div>
-						<div class="fragment">
-							<p>+</p>
 							<p>POST node IDs to <code style="padding-left: .5em; font-size: 80%">history/get_node_read_timestamps</code></p>
 						</div>
 						<div class="fragment">
 							<p>=</p>
-							<p>Same HTML for <em>all</em> users!</p>
+							<p>Same HTML for <em>all</em> users!<br />
+							  <small>(P15n applied later)</small></p>
 						</p>
 						<aside class="notes">
 							On the server side, nothing has changed; you still define contextual links in the exact same way. However, the
@@ -490,10 +485,6 @@ function comment_node_view_alter(&amp;$build, EntityInterface $node, EntityDispl
 						<img src="images/cache-client-side-all-the-things.jpg" width="500" height="375" />
 					</section>
 					<section>
-						<h2>p15n</h2>
-						<p><em>personalization</em></p>
-					</section>
-					<section>
 						<h2>Didn't you make Drupal <span class="fragment highlight-red">slower</span>?</h2>
 						<div class="fragment">
 							<p>Separate requests for:</p>
@@ -541,8 +532,8 @@ function comment_node_view_alter(&amp;$build, EntityInterface $node, EntityDispl
 							</ol>
 							<div class="fragment">
 								<table cellspacing="8" style="margin: 0 auto">
-									<tr><td>slower</td><td>⟺</td><td>cold cache</td><td>⇒</td><td>5 reqs</td></tr>
-									<tr><td>faster</td><td>⟺</td><td>warm cache</td><td>⇒</td><td>1 req</td></tr>
+									<tr><td class="fragment highlight-red">slower</td><td>⟺</td><td>cold cache</td><td>⇒</td><td>5 reqs</td></tr>
+									<tr><td class="fragment highlight-green">faster</td><td>⟺</td><td>warm cache</td><td>⇒</td><td>1 req</td></tr>
 								</table>
 							</div>
 						</div>
@@ -591,7 +582,7 @@ function comment_node_view_alter(&amp;$build, EntityInterface $node, EntityDispl
 								<li><strong>Before:</strong> 1 HTTP req/page</li>
 								<li><strong>After:</strong> 1 setting/page</li>
 							</ul>
-							<p style="margin-top: 5em"><a href="https://drupal.org/node/1927174">[#1927174]</a> Make the Toolbar administration menu sub tree rendering more efficient</p>
+							<p style="margin-top: 5em"><a href="https://drupal.org/node/1927174">[#1927174]</a></p>
 						</div>
 					</section>
 					<section>
@@ -604,36 +595,8 @@ function comment_node_view_alter(&amp;$build, EntityInterface $node, EntityDispl
   )),
 );
 </code></pre>
-						<div class="fragment">
-							<p>+</p>
-							<pre><code class="php">function _toolbar_get_subtrees_hash() {
-  $cid = _toolbar_get_cid(); // [user_id]:[language code]
-  if ($cache = cache('toolbar')->get($cid)) {
-    $hash = $cache->data;
-  }
-  else {
-    $data = …
-    $hash = Crypt::hashBase64($data);
-    $tags = array('user' => array(33), 'locale' => TRUE);
-    cache('toolbar')->set($cid, $hash, CACHE_PERMANENT, $tags);
-  }
-  return $hash;
-}
-</code></pre>
-					</div>
-					<aside class="notes">
-						<p>We ensure that <em>every</em> page has the hash for the current
-user's toolbar  subtree. This is used to check if the subtrees in <code>localStorage</code> are still up-to-date.<br />
-						However, we also want to make sure that calculating this hash also is as fast as possible. So we cache that on the server-side.</p>
-						<p>So, we're embedding a minimal number of bytes on the page (the hash) <em>and</em> we're making sure we can get that data as fast as possible, to deliver the HTML as fast as possible.</p>
-						<p>This hash is used to check if the subtrees in <code>localStorage</code> are still up-to-date (meaning we won't have to do a HTTP request to retrieve them!).</p>
-					</aside>
-					</section>
-					<section>
-						<h2>Example: Toolbar — hash</h2>
-						<p>Hash must change!</p>
 						<div class="fragment" style="margin-top: 2em">
-							<p>Whenever a change of:</p>
+							<p>Hash depends on:</p>
 							<ul>
 								<li>a role's permissions</li>
 								<li>a user's roles</li>
@@ -641,6 +604,14 @@ user's toolbar  subtree. This is used to check if the subtrees in <code>localSto
 								<li>a module (un)installed</li>
 							</ul>
 						</div>
+
+					<aside class="notes">
+						<p>We ensure that <em>every</em> page has the hash for the current
+user's toolbar  subtree. This is used to check if the subtrees in <code>localStorage</code> are still up-to-date.<br />
+						However, we also want to make sure that calculating this hash also is as fast as possible. So we cache that on the server-side.</p>
+						<p>So, we're embedding a minimal number of bytes on the page (the hash) <em>and</em> we're making sure we can get that data as fast as possible, to deliver the HTML as fast as possible.</p>
+						<p>This hash is used to check if the subtrees in <code>localStorage</code> are still up-to-date (meaning we won't have to do a HTTP request to retrieve them!).</p>
+					</aside>
 					</section>
 					<section>
 						<h2>Example: Toolbar — JS</h2>
@@ -674,8 +645,9 @@ user's toolbar  subtree. This is used to check if the subtrees in <code>localSto
 							<li>Keyed by user ID</li>
 							<li><em>Does not ever change!</em></li>
 						</ul>
+						<img class="fragment" width="330" height="264" src="images/cannot-be-unseen.jpg" alt="cannot be unseen meme photo" style="position: absolute; top: 180px; right: 0px" />
 						<div class="fragment">
-							<p style="margin: 1em">⬇</p>
+							<p style="margin: 1em; margin-top: 6em">⬇</p>
 							<p>No hash necessary!</p>
 						</div>
 						<aside class="notes">
@@ -760,23 +732,23 @@ user's toolbar  subtree. This is used to check if the subtrees in <code>localSto
 						<p>API:</p>
 						<ul>
 							<li>More explicit</li>
-							<li>More structured (more building blocks)</li>
+							<li>More building blocks</li>
 						</ul>
-					</section>
-					<section>
-						<h2>CSS/JS aggregation in Drupal 8</h2>
-						<p>Identical logic, but restructured</p>
-						<p><small>(See <a href="https://drupal.org/node/2034675">d.o/node/2034675</a>)</small></p>
-						<ol>
-							<li class="fragment"><code>AssetCollectionOptimizerInterface</code>
-								<ol>
-									<li class="fragment"><code>AssetCollectionGrouperInterface</code></li>
-									<li class="fragment"><code>AssetOptimizerInterface</code></li>
-									<li class="fragment"><code>AssetDumperInterface</code></li>
-								</ol>
-							</li>
-							<li class="fragment"><code>AssetCollectionRendererInterface</code></li>
-						</ol>
+						<div class="fragment">
+							<hr>
+							<p>Identical logic, but restructured</p>
+							<p><small>(See <a href="https://drupal.org/node/2034675">d.o/node/2034675</a>)</small></p>
+							<ol>
+								<li class="fragment"><code>AssetCollectionOptimizerInterface</code>
+									<ol>
+										<li class="fragment"><code>AssetCollectionGrouperInterface</code></li>
+										<li class="fragment"><code>AssetOptimizerInterface</code></li>
+										<li class="fragment"><code>AssetDumperInterface</code></li>
+									</ol>
+								</li>
+								<li class="fragment"><code>AssetCollectionRendererInterface</code></li>
+							</ol>
+						</div>
 						<aside class="notes">
 							<p><code>AssetCollectionOptimizerInterface</code> optimizes the whole collection of assets, returns a new collection of assets.</p>
 							<p><code>AssetCollectionGrouperInterface</code> is used/called by <code>AssetCollectionOptimizerInterface</code>, groups a collection of assets into logical groups (a.o. based on media type for CSS).</p>
@@ -786,8 +758,8 @@ user's toolbar  subtree. This is used to check if the subtrees in <code>localSto
 						</aside>
 					</section>
 					<section>
-						<h2>Overridable asset services</h2>
-						<p><code>core.services.yml</code></p>
+						<h2>Asset services</h2>
+						<p>Override at will!</p>
 						<pre><code class="yaml" style="max-height: none">asset.css.collection_renderer:
   class: Drupal\Core\Asset\CssCollectionRenderer
 asset.css.collection_optimizer:
@@ -811,20 +783,18 @@ asset.js.dumper:
   …</code></pre>
 					</section>
 					<section>
-						<h2>Overridable asset services: <span class="fragment highlight-blue">possibilities</span></h2>
+						<h2>Asset services: <span class="fragment highlight-blue">possibilities</span></h2>
 						<ol>
-							<li class="fragment"><strong>asset dumper:</strong> external server <small>(CDN, S3 …)</small></li>
+							<li class="fragment"><strong>Asset dumper:</strong> external server <small>(CDN, S3 …)</small></li>
 							<li class="fragment"><strong>JS optimizer:</strong> UglifyJS</li>
 							<li class="fragment"><strong>JS collection renderer</strong>: LabJS script loader</li>
-							<li class="fragment"><strong>groupers:</strong> 3<small>rd</small> party data mining ⇒ <span class="fragment highlight-blue">globally optimal groups</span></li>
-							<li class="fragment"><strong>CSS collection optimizer:</strong>
+							<li class="fragment"><strong>Groupers:</strong> 3<small>rd</small> party data mining ⇒ <span class="fragment highlight-blue">globally optimal groups</span></li>
+							<li class="fragment"><strong>Collection optimizer:</strong>
 								<ul>
 									<li>new aggregate ⟺ changed <code>mtime</code></li>
-									<li>protocol-dependent <small>(HTTP vs. HTTPS vs. SPDY)</small></li>
+									<li>use <span class="fragment highlight-blue">custom architecture</span> entirely!</li>
 								</ul>
-								<em>but</em> still use default grouper, optimizer &amp; dumper
 							</li>
-							<li class="fragment"><strong>JS collection optimizer:</strong> don't use core's default grouper, optimizer and dumper, use <span class="fragment highlight-blue">custom architecture</span> entirely!</li>
 						</ol>
 						<aside class="notes">
 							<p>Freedom to choose what to override: individual services, all services, even custom asset handling architecture is possible, all without hacking core.</p>
@@ -852,10 +822,9 @@ asset.js.dumper:
 							<tr><td><a href="https://drupal.org/node/1605290">[#1605290]</a></td><td>Entity render caching <small>(with cache tag support)</small></td></tr>
 							<tr><td><a href="https://drupal.org/node/1712456">[#1712456]</a></td><td>Views + cache tags</td></tr>
 							<tr><td><a href="https://drupal.org/node/678292">[#678292]</a></td><td>Enable CSS &amp; JS aggregation by default</td></tr>
-							<tr><td><a href="https://drupal.org/node/2005644">[#2005644]</a></td><td>Permissions hash for client-side caches</td></tr>
+							<tr><td><a href="https://drupal.org/node/2005644">[#2005644]</a></td><td>Permissions hash: remove 2 HTTP reqs/page!</td></tr>
 							<tr><td></td><td>…</td></tr>
 						</table>
-
 						<p>… anything tagged <a href="https://drupal.org/project/issues/search/drupal?issue_tags=D8%20cacheability">D8 cacheability</a>!</p>
 					</section>
 				</section>
