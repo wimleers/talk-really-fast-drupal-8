@@ -731,21 +731,134 @@ user's toolbar  subtree. This is used to check if the subtrees in <code>localSto
 					<section>
 						<img src="images/asset-optimization-all-the-things.jpg" width="500" height="375" />
 					</section>
+					<section>
+						<h2>CSS/JS aggregation in Drupal 7</h2>
+						<p>&ldquo;API&rdquo;:</p>
+						<ul>
+							<li><code>#aggregate_callback</code></li>
+							<li><code>#group_callback</code></li>
+						</ul>
+						<div class="fragment">
+							<p style="margin: 1em">⬇</p>
+							<p>Override the whole, or nothing … or hacks</p>
+						</div>
+						<div class="fragment">
+							<p style="margin: 1em">⬇</p>
+							<p>Incompatibility hell: Omega theme, CDN module …</p>
+						</div>
+					</section>
+					<section>
+						<h2>CSS/JS aggregation in Drupal 8</h2>
+						<p>API:</p>
+						<ul>
+							<li>More explicit</li>
+							<li>More structured (more building blocks)</li>
+						</ul>
+					</section>
+					<section>
+						<h2>CSS/JS aggregation in Drupal 8</h2>
+						<p>Identical logic, but restructured</p>
+						<p><small>(See <a href="https://drupal.org/node/2034675">d.o/node/2034675</a>)</small></p>
+						<ol>
+							<li class="fragment"><code>AssetCollectionOptimizerInterface</code>
+								<ol>
+									<li class="fragment"><code>AssetCollectionGrouperInterface</code></li>
+									<li class="fragment"><code>AssetOptimizerInterface</code></li>
+									<li class="fragment"><code>AssetDumperInterface</code></li>
+								</ol>
+							</li>
+							<li class="fragment"><code>AssetCollectionRendererInterface</code></li>
+						</ol>
+						<aside class="notes">
+							<p><code>AssetCollectionOptimizerInterface</code> optimizes the whole collection of assets, returns a new collection of assets.</p>
+							<p><code>AssetCollectionGrouperInterface</code> is used/called by <code>AssetCollectionOptimizerInterface</code>, groups a collection of assets into logical groups (a.o. based on media type for CSS).</p>
+							<p><code>AssetOptimizerInterface</code> is used/called by <code>AssetCollectionOptimizerInterface</code>, optimizes an individual asset, returns optimized data as string.</p>
+							<p><code>AssetDumperInterface</code> is used/called by <code>AssetCollectionOptimizerInterface</code>, dumps an (optimized) asset to persistent storage, returns an URI.</p>
+							<p><code>AssetCollectionRendererInterface</code> can render an asset collection into a render array.</p>
+						</aside>
+					</section>
+					<section>
+						<h2>Overridable asset services</h2>
+						<p><code>core.services.yml</code></p>
+						<pre><code class="yaml" style="max-height: none">asset.css.collection_renderer:
+  class: Drupal\Core\Asset\CssCollectionRenderer
+asset.css.collection_optimizer:
+  class: Drupal\Core\Asset\CssCollectionOptimizer
+  arguments: [ '@asset.css.collection_grouper', '@asset.css.optimizer', '@asset.css.dumper', '@state' ]
+asset.css.optimizer:
+  class: Drupal\Core\Asset\CssOptimizer
+asset.css.collection_grouper:
+  class: Drupal\Core\Asset\CssCollectionGrouper
+asset.css.dumper:
+  class: Drupal\Core\Asset\AssetDumper
+asset.js.collection_renderer:
+  …
+asset.js.collection_optimizer:
+  …
+asset.js.optimizer:
+  …
+asset.js.collection_grouper:
+  …
+asset.js.dumper:
+  …</code></pre>
+					</section>
+					<section>
+						<h2>Overridable asset services: <span class="fragment highlight-blue">possibilities</span></h2>
+						<ol>
+							<li class="fragment"><strong>asset dumper:</strong> external server <small>(CDN, S3 …)</small></li>
+							<li class="fragment"><strong>JS optimizer:</strong> UglifyJS</li>
+							<li class="fragment"><strong>JS collection renderer</strong>: LabJS script loader</li>
+							<li class="fragment"><strong>groupers:</strong> 3<small>rd</small> party data mining ⇒ <span class="fragment highlight-blue">globally optimal groups</span></li>
+							<li class="fragment"><strong>CSS collection optimizer:</strong>
+								<ul>
+									<li>new aggregate ⟺ changed <code>mtime</code></li>
+									<li>protocol-dependent <small>(HTTP vs. HTTPS vs. SPDY)</small></li>
+								</ul>
+								<em>but</em> still use default grouper, optimizer &amp; dumper
+							</li>
+							<li class="fragment"><strong>JS collection optimizer:</strong> don't use core's default grouper, optimizer and dumper, use <span class="fragment highlight-blue">custom architecture</span> entirely!</li>
+						</ol>
+						<aside class="notes">
+							<p>Freedom to choose what to override: individual services, all services, even custom asset handling architecture is possible, all without hacking core.</p>
+							<p>This means that it's possible to apply data mining techniques performed by 3rd party services to generate globablly optimal groupings, and all you'd have
+						</aside>
+					</section>
+					<section data-background="#4d7e65">
+						<h2>Conclusion <small>(asset handling)</small></h2>
+						<blockquote style="margin-top: 1em">Override individual asset services</blockquote>
+						<ul>
+							<li>Improve individual services <small>(use existing architecture)</small></li>
+							<li><em>Or</em> apply your own architecture!</li>
+						</ul>
+					</section>
 				</section>
 
 
 
-
+				<!-- What still needs to happen. -->
 				<section>
 					<section>
-						<h2>What still needs to happen.</h2>
-						<p>We need your help!</p>
+						<h2>What still needs to happen</h2>
+						<p><em>We need your help!</em></p>
+						<table cellspacing="8" style="margin-top: 2em; margin-bottom: 2em">
+							<tr><td><a href="https://drupal.org/node/1605290">[#1605290]</a></td><td>Entity render caching <small>(with cache tag support)</small></td></tr>
+							<tr><td><a href="https://drupal.org/node/1712456">[#1712456]</a></td><td>Views + cache tags</td></tr>
+							<tr><td><a href="https://drupal.org/node/678292">[#678292]</a></td><td>Enable CSS &amp; JS aggregation by default</td></tr>
+							<tr><td><a href="https://drupal.org/node/2005644">[#2005644]</a></td><td>Permissions hash for client-side caches</td></tr>
+							<tr><td></td><td>…</td></tr>
+						</table>
+
+						<p>… anything tagged <a href="https://drupal.org/project/issues/search/drupal?issue_tags=D8%20cacheability">D8 cacheability</a>!</p>
 					</section>
-					<section>
-						Reduce the number of post-page load HTTP requests (contextual, edit, history)
-						<a href="https://drupal.org/node/1712456">Views + cache tags</a>
-						CSS/JS Aggregation enabled by default https://drupal.org/node/678292
-					</section>
+				</section>
+
+
+
+				<!-- Closing -->
+				<section>
+					<h3>Hope you liked it.</h3>
+					<h2 style="margin: 1em" class="fragment roll-in">Questions?</h2>
+					<p><a href="http://wimleers.com/talk/really-fast-drupal-8">wimleers.com/talk/really-fast-drupal-8</a></p>
 				</section>
 
 
