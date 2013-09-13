@@ -122,7 +122,7 @@ Drupal.behaviors.tableSelect = {
 							<li class="fragment"><code>jQuery</code> is used</li>
 							<li class="fragment"><code>Drupal</code> is used</li>
 						</ul>
-						<p class="fragment">⟶ put them in the closure</p>
+						<p class="fragment">⟹ put them in the closure</p>
 					</section>
 					<section>
 						<h2>2: declare library</h2>
@@ -139,7 +139,7 @@ Drupal.behaviors.tableSelect = {
     ),
   );
 						</code></pre>
-						<p class="fragment"><code>jQuery</code> and <code>Drupal</code> in the closure ⟶ dependencies</p>
+						<p class="fragment"><code>jQuery</code> and <code>Drupal</code> in the closure ⟹ dependencies</p>
 					</section>
 					<section>
 						<h2>3: abandon <small><code>drupal_add_(css|js)()</code></small></h2>
@@ -157,7 +157,7 @@ Drupal.behaviors.tableSelect = {
 -      drupal_add_library('system', 'drupal.tableselect');
 +      $element['#attached']['library'][] = array('system', 'drupal.tableselect');
 						</code></pre>
-						<p><code>drupal_add_*()</code> uses global state ⟶ breaks caching</p>
+						<p><code>drupal_add_*()</code> uses global state ⟹ breaks caching</p>
 						<aside class="notes">
 							When calling <code>drupal_add_*()</code>, a global state variable keeps track of all the CSS, JS and settings that have been added to the page. But when you want to cache parts/fragments of the page, then this global state wouldn't be rebuild, because the code calling <code>drupal_add_*()</code> is not being executed. That's why you should always use <code>#attached</code>.
 						</aside>
@@ -200,6 +200,7 @@ Drupal.behaviors.tableSelect = {
 								<li><a href="https://drupal.org/node/1605290">[#1605290]</a>: Enable entity render caching with cache tag support</li>
 							</ol>
 						</p>
+						<p>… but still not yet there!</p>
 						<aside class="notes">
 							Very roughly speaking, this is the sequence of things we had to fix.
 						</aside>
@@ -328,7 +329,7 @@ function drupal_render_collect_cache_tags($element) { … }</code></pre>
 							<li class="fragment">Embedded in node's HTML</li>
 							<li class="fragment">Adapt to user's permissions</li>
 						</ul>
-						<p class="fragment">⟶ breaks render cache</p>
+						<p class="fragment">⟹ breaks render cache</p>
 					</section>
 					<section>
 						<h2>Contextual links: HTML in Drupal 8</h2>
@@ -344,7 +345,7 @@ frontpage:location=page&amp;name=frontpage&amp;display_id=page_1"></div>
 							<li class="fragment">Embedded in node's HTML</li>
 							<li class="fragment"><em>Invisible placeholder!</em></li>
 						</ul>
-						<p class="fragment">⟶ compatible with render cache</p>
+						<p class="fragment">⟹ compatible with render cache</p>
 					</section>
 					<section>
 						<h2>Contextual links: logic in Drupal 8</h2>
@@ -401,7 +402,7 @@ function comment_node_view_alter(&amp;$build, EntityInterface $node, EntityDispl
 							<li class="fragment">Embedded in node's HTML</li>
 							<li class="fragment"><em>Invisible placeholder!</em></li>
 						</ul>
-						<p class="fragment">⟶ compatible with render cache</p>
+						<p class="fragment">⟹ compatible with render cache</p>
 					</section>
 					<section>
 						<h2>"new" comment markers: logic in Drupal 8</h2>
@@ -481,9 +482,245 @@ function comment_node_view_alter(&amp;$build, EntityInterface $node, EntityDispl
 						<img src="images/cache-client-side-all-the-things.jpg" width="500" height="375" />
 					</section>
 					<section>
-						TODO
-						https://drupal.org/node/2005644
-						http://dgo.to/edit_metadata_cache
+						<h2>p15n</h2>
+						<p><em>personalization</em></p>
+					</section>
+					<section>
+						<h2>Didn't you make Drupal <span class="fragment highlight-red">slower</span>?</h2>
+						<div class="fragment">
+							<p>Separate requests for:</p>
+							<ul>
+								<li>Toolbar</li>
+								<li>Fixed render cache
+									<ul>
+										<li>"new" markers</li>
+										<li>contextual links</li>
+									</ul>
+								</li>
+								<li>In-place editing</li>
+							</ul>
+						</div>
+						<div class="fragment">
+							<p style="margin: 1em">⬇</p>
+							<p>1 → 5 reqs/page load!?</p>
+						</div>
+					</section>
+					<section>
+						<h2>Goals</h2>
+						<ol>
+							<li>More scalable</li>
+							<li>Better <em>perceived</em> performance</li>
+						</ol>
+						<aside class="notes">
+							<p>"more scalable" = "more requests per second"</p>
+						</aside>
+					</section>
+					<section>
+						<div>
+							<h2>By</h2>
+							<ol>
+								<li>Serving HTML faster</li>
+								<li>Personalizing via JS</li>
+								<li>Caching client-side</li>
+							</ol>
+						<div class="fragment">
+							<h2 style="margin-top: 1em">Then</h2>
+							<ol>
+								<li><em>Always</em> faster Time to Glass
+									<p class="fragment">p15n: server ⟶ client</p>
+								</li>
+								<li class="fragment">P15n (on client):</li>
+							</ol>
+							<div class="fragment">
+								<table cellspacing="8" style="margin: 0 auto">
+									<tr><td>slower</td><td>⟺</td><td>cold cache</td><td>⇒</td><td>5 reqs</td></tr>
+									<tr><td>faster</td><td>⟺</td><td>warm cache</td><td>⇒</td><td>1 req</td></tr>
+								</table>
+							</div>
+						</div>
+						<aside class="notes">
+							<p>So, amortized, there will be less data to send over the network.</p>
+							<p>The personalization JS should be at the bottom of the page in most cases, since it should not block the initial paint.</p>
+							<p>The one request in the warm cache scenario is not some additional HTTP request, but the HTTP request for the page itself, which we cannot avoid.</p>
+						</aside>
+					</section>
+					<section>
+						<h2>So</h2>
+						<blockquote>
+							<p>&ldquo;HTML skeleton + JS p15n&rdquo; is faster</p>
+							<p style="font-style: normal">⇕</p>
+							<p>Warm client-side cache</p>
+						</blockquote>
+						<p>&amp;</p>
+						<blockquote>More p15n <span style="font-style: normal">⟹</span> slower!</blockquote>
+						<aside class="notes">
+							<p>I think many of us in the Drupal world have forgotten that each personalization aspect, even something as simple as "new" markers, means that the page inevitably becomes slower. All we're doing is moving the cost of applying the personalization from the server to client, so that <em>all</em> pages are visible faster.
+						</aside>
+					</section>
+					<section>
+						<p>The question:</p>
+						<blockquote>How to keep the cache <span style="text-shadow: 0 0 20px #fefcc9, 10px -10px 30px #feec85, -20px -20px 40px #ffae34, 20px -40px 50px #ec760c, -20px -60px 60px #cd4606, 0 -80px 70px #973716, 10px -90px 80px #451b0e; font-weight: 800; font-size: 150%
+">warm</span>?</blockquote>
+					</section>
+					<section>
+						<blockquote style="margin-bottom: 1em">&ldquo;There are only two hard problems in Computer Science: cache invalidation and naming things.&rdquo;</blockquote>
+						<ul>
+							<li>Caching is easy</li>
+							<li>Cache invalidation is hard</li>
+							<li>Poor cache invalidation ⟹ poor performance</li>
+						</ul>
+						<aside class="notes">
+							<p>Yep. Again. :)</p>
+						</aside>
+					</section>
+					<section>
+						<div style="position: absolute; top: 0; left: 0; width: 50%;">
+							<img style="border: none; background: none; box-shadow: none" class="frdagment fade-in" src="images/toolbar.png" />
+						</div>
+						<div style="position: absolute; left: 50%; width: 50%;">
+							<h2>Example: Toolbar</h2>
+							<ul>
+								<li><strong>Before:</strong> 1 HTTP req/page</li>
+								<li><strong>After:</strong> 1 setting/page</li>
+							</ul>
+							<p style="margin-top: 5em"><a href="https://drupal.org/node/1927174">[#1927174]</a> Make the Toolbar administration menu sub tree rendering more efficient</p>
+						</div>
+					</section>
+					<section>
+						<h2>Example: Toolbar — hash</h2>
+						<p>In <code>hook_page_build():</code></p>
+						<pre><code class="php">$element['#attached']['js'][] = array(
+  'type' => 'setting',
+  'data' => array('toolbar' => array(
+    'subtreesHash' => _toolbar_get_subtrees_hash(),
+  )),
+);
+</code></pre>
+						<div class="fragment">
+							<p>+</p>
+							<pre><code class="php">function _toolbar_get_subtrees_hash() {
+  $cid = _toolbar_get_cid(); // [user_id]:[language code]
+  if ($cache = cache('toolbar')->get($cid)) {
+    $hash = $cache->data;
+  }
+  else {
+    $data = …
+    $hash = Crypt::hashBase64($data);
+    $tags = array('user' => array(33), 'locale' => TRUE);
+    cache('toolbar')->set($cid, $hash, CACHE_PERMANENT, $tags);
+  }
+  return $hash;
+}
+</code></pre>
+					</div>
+					<aside class="notes">
+						<p>We ensure that <em>every</em> page has the hash for the current
+user's toolbar  subtree. This is used to check if the subtrees in <code>localStorage</code> are still up-to-date.<br />
+						However, we also want to make sure that calculating this hash also is as fast as possible. So we cache that on the server-side.</p>
+						<p>So, we're embedding a minimal number of bytes on the page (the hash) <em>and</em> we're making sure we can get that data as fast as possible, to deliver the HTML as fast as possible.</p>
+						<p>This hash is used to check if the subtrees in <code>localStorage</code> are still up-to-date (meaning we won't have to do a HTTP request to retrieve them!).</p>
+					</aside>
+					</section>
+					<section>
+						<h2>Example: Toolbar — hash</h2>
+						<p>Hash must change!</p>
+						<div class="fragment" style="margin-top: 2em">
+							<p>Whenever a change of:</p>
+							<ul>
+								<li>a role's permissions</li>
+								<li>a user's roles</li>
+								<li>a menu link i/t "admin" menu</li>
+								<li>a module (un)installed</li>
+							</ul>
+						</div>
+					</section>
+					<section>
+						<h2>Example: Toolbar — JS</h2>
+<pre style="width: 95%"><code class="javascript">var LS = localStorage;</code></pre>
+<pre style="width: 95%"><code class="javascript">function load() {
+  var subtreesHash = drupalSettings.toolbar.subtreesHash;
+  var cachedSubtreesHash = LS.getItem('Drupal.toolbar.subtreesHash');
+
+  // Identical hashes?
+  if (subtreesHash === cachedSubtreesHash) {
+    var subtrees = JSON.parse(LS.getItem('Drupal.toolbar.subtrees'));
+    Drupal.toolbar.setSubtrees.resolve(subtrees);
+  }
+  else {
+    LS.removeItem('Drupal.toolbar.subtrees');
+    $.ajax(Drupal.url('toolbar/subtrees/' + subtreesHash));
+
+    // Remember the new hash.
+    LS.setItem('Drupal.toolbar.subtreesHash', subtreesHash);
+  }
+}
+</code></pre>
+<pre style="width: 95%"><code class="javascript">function save() {
+  LS.setItem('Drupal.toolbar.subtrees', JSON.stringify(subtrees));
+}</code></pre>
+					</section>
+					<section>
+						<h2>Example: "new" comment markers</h2>
+						<ul>
+							<li>"Last read" timestamps in <code>localStorage</code></li>
+							<li>Keyed by user ID</li>
+							<li><em>Does not ever change!</em></li>
+						</ul>
+						<div class="fragment">
+							<p style="margin: 1em">⬇</p>
+							<p>No hash necessary!</p>
+						</div>
+						<aside class="notes">
+							<p>Since Drupal doesn't have "mark as unread", the client-side cached data is never wrong: it was <em>at least</em> read that long ago, and often that is sufficient.</p>
+						</aside>
+					</section>
+					<section>
+						<h2>Ideally…</h2>
+						<p>… we would have <em>many</em> hashes</p>
+						<p class="fragment"><small>(~ client-side cache tags)</small></p>
+						<div class="fragment">
+							<hr>
+							<h3>Today</h3>
+							<p><code>drupalSettings.user.uid</code></p>
+							<p><small>(Used by "new" marker.)</small></p>
+						</div>
+						<div class="fragment">
+							<hr>
+							<h3>Probably</h3>
+							<p><code>drupalSettings.user.permissionsHash</code></p>
+							<p><small>(Used by contextual links, in-place editing.)</small></p>
+						</div>
+						<div class="fragment">
+							<hr>
+							<h4>Hopefully more!</h4>
+						</div>
+						<aside class="notes">
+							<p>It's likely that some more client-side "cache tags" will be added, to help make Drupal 8 faster by doing smarter client-side caching.</p>
+							<p>Comprehensive client-side cache tags however, are rather unlikely; just like we won't have comprehensive server-side cache tags.</p>
+						</aside>
+					</section>
+					<section data-background="#4d7e65">
+						<h2>Conclusion <small>(client-side caching)</small></h2>
+						<blockquote style="margin-top: 1em">Cache slowly changing data</blockquote>
+						<ul>
+							<li>P15n</li>
+							<li>Expensive to:
+								<ul>
+									<li>send <small>(bytes)</small></li>
+									<li>calculate <small>(server CPU)</small></li>
+								</ul>
+							</li>
+						</ul>
+						<blockquote style="margin-top: 1em">Keep the cache warm to keep it fast!</blockquote>
+						<ul>
+							<li>&ldquo;minimize # of requests&rdquo;</li>
+							<li>Heuristics</li>
+							<li>Hashes = cache tags <small>(<code>drupalSettings</code>)</small></li>
+						</ul>
+						<aside class="notes">
+							<p>You can do this in Drupal 7 as well, for any non-core stuff. Drupal 7 can't/couldn't ship with it because <code>localStorage</code> isn't supported by all the browsers it supports.</p>
+							<p>An example heuristic is the "new" comment marker's "30 day" heuristic: any content older than 30 days is assumed to have been read already, so we can just ignore it.</p>
+						</aside>
 					</section>
 				</section>
 
